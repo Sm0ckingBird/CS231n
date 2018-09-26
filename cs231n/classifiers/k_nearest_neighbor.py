@@ -1,5 +1,4 @@
 import numpy as np
-import math
 from collections import Counter
 
 class KNearestNeighbor(object):
@@ -73,7 +72,7 @@ class KNearestNeighbor(object):
         # training point, and store the result in dists[i, j]. You should   #
         # not use a loop over dimension.                                    #
         #####################################################################
-        dists[i][j] = math.sqrt(np.sum(np.square(self.X_train[j]-X[i])))
+        dists[i][j] = np.sqrt(np.sum(np.square(self.X_train[j]-X[i])))
         #####################################################################
         #                       END OF YOUR CODE                            #
         #####################################################################
@@ -95,7 +94,7 @@ class KNearestNeighbor(object):
       # Compute the l2 distance between the ith test point and all training #
       # points, and store the result in dists[i, :].                        #
       #######################################################################
-      pass
+      dists[i] = np.sqrt(np.sum(np.square((self.X_train - X[i])), 1))
       #######################################################################
       #                         END OF YOUR CODE                            #
       #######################################################################
@@ -123,7 +122,10 @@ class KNearestNeighbor(object):
     # HINT: Try to formulate the l2 distance using matrix multiplication    #
     #       and two broadcast sums.                                         #
     #########################################################################
-    pass
+    dists += np.sum(self.X_train ** 2, axis=1).reshape(1, num_train)
+    dists += np.sum(X ** 2, axis=1).reshape(num_test, 1) # reshape for broadcasting
+    dists -= 2 * np.dot(X, self.X_train.T)
+    dists = np.sqrt(dists)
     #########################################################################
     #                         END OF YOUR CODE                              #
     #########################################################################

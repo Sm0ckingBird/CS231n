@@ -36,13 +36,17 @@ def svm_loss_naive(W, X, y, reg):
             margin = scores[j] - correct_class_score + 1 # note delta = 1
             if margin > 0:
                 loss += margin
+                dW[:, j] += X[i].T
+                dW[:, y[i]] -= X[i].T
 
     # Right now the loss is a sum over all training examples, but we want it
     # to be an average instead so we divide by num_train.
     loss /= num_train
+    dW /= num_train
 
     # Add regularization to the loss.
     loss += reg * np.sum(W * W)
+    dW += reg * W
 
     #############################################################################
     # TODO:                                                                     #
@@ -54,7 +58,6 @@ def svm_loss_naive(W, X, y, reg):
     #############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     
@@ -77,9 +80,15 @@ def svm_loss_vectorized(W, X, y, reg):
     # result in loss.                                                           #
     #############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-
-    pass
-
+    scores = X.dot(W)
+    correct_class_score = scores[list(range(scores.shape[0])), y].reshape(X.shape[0],1)
+    scores -= correct_class_score
+    scores += 1
+    scores[list(range(scores.shape[0])), y] = 0
+    mask = (scores < 0)
+    scores[mask] = 0
+    loss = np.sum(scores) / X.shape[0]
+    loss += reg * np.sum(W*W)
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
     #############################################################################
@@ -93,7 +102,9 @@ def svm_loss_vectorized(W, X, y, reg):
     #############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    counts = (scores > 0).astype(int)
+    counts[range(X.shape[0]), y] = - np.sum(counts, axis = 1)
+    dW += np.dot(X.T, counts) / X.shape[0] + reg * W
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 

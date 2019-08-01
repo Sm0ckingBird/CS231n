@@ -1,0 +1,4 @@
+np.argsort()			#从小到大排序后返回数据的下标
+np.bincount()			#计算0-max每个元素的出现次数
+np.vstack()				#垂直叠加
+np.hstack()				#水平叠加

@@ -130,7 +130,7 @@ class Solver(object):
         self.num_val_samples = kwargs.pop('num_val_samples', None)
 
         self.checkpoint_name = kwargs.pop('checkpoint_name', None)
-        self.print_every = kwargs.pop('print_every', 50)
+        self.print_every = kwargs.pop('print_every', 10)
         self.verbose = kwargs.pop('verbose', True)
 
         # Throw an error if there are extra keyword arguments

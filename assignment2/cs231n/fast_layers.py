@@ -1,7 +1,5 @@
 from __future__ import print_function
 import numpy as np
-import torch
-import torch.nn as nn
 try:
     from cs231n.im2col_cython import col2im_cython, im2col_cython
     from cs231n.im2col_cython import col2im_6d_cython
@@ -41,26 +39,6 @@ def conv_forward_im2col(x, w, b, conv_param):
     cache = (x, w, b, conv_param, x_cols)
     return out, cache
 
-
-def conv_forward_pytorch(x, w, b, conv_param):
-    N, C, H, W = x.shape
-    F, _, HH, WW = w.shape
-    stride, pad = conv_param['stride'], conv_param['pad']
-    layer = nn.Conv2d(C, F, (HH, WW), stride=stride, padding=pad)
-    layer.weight = nn.Parameter(torch.tensor(w))
-    layer.bias = nn.Parameter(torch.tensor(b))
-    tx = torch.tensor(x, requires_grad=True)
-    out = layer(tx)
-    cache = (x, w, b, conv_param, tx, out, layer)
-    return out, cache
-
-def conv_backward_pytorch(dout, cache):
-    x, _, _, _, tx, out, layer = cache
-    out.backward(torch.tensor(dout))
-    dx = tx.grad.detach().numpy()
-    dw = layer.weight.grad.detach().numpy()
-    db = layer.bias.grad.detach().numpy()
-    return dx, dw, db
 
 def conv_forward_strides(x, w, b, conv_param):
     N, C, H, W = x.shape

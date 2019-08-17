@@ -1,3 +1,3 @@
-wget "http://cs231n.stanford.edu/squeezenet_tf2.zip"
-unzip squeezenet_tf2.zip
-rm squeezenet_tf2.zip
+wget "http://cs231n.stanford.edu/squeezenet_tf.zip"
+unzip squeezenet_tf.zip
+rm squeezenet_tf.zip

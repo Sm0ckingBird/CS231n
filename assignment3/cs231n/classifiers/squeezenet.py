@@ -2,45 +2,109 @@ import tensorflow as tf
 
 NUM_CLASSES = 1000
 
-class Fire(tf.keras.Model):
-    def __init__(self, inplanes, squeeze_planes, expand1x1_planes, expand3x3_planes,name=None):
-        super(Fire, self).__init__(name='%s/fire'%name)
-        self.inplanes = inplanes
-        self.squeeze = tf.keras.layers.Conv2D(squeeze_planes, input_shape=(inplanes,), kernel_size=1, strides=(1,1), padding="VALID", activation='relu',name='squeeze')
-        self.expand1x1 = tf.keras.layers.Conv2D(expand1x1_planes, kernel_size=1, padding="VALID", strides=(1,1), activation='relu',name='e11')
-        self.expand3x3 = tf.keras.layers.Conv2D(expand3x3_planes, kernel_size=3, padding="SAME", strides=(1,1), activation='relu',name='e33')
+def fire_module(x,inp,sp,e11p,e33p):
+    with tf.variable_scope("fire"):
+        with tf.variable_scope("squeeze"):
+            W = tf.get_variable("weights",shape=[1,1,inp,sp])
+            b = tf.get_variable("bias",shape=[sp])
+            s = tf.nn.conv2d(x,W,[1,1,1,1],"VALID")+b
+            s = tf.nn.relu(s)
+        with tf.variable_scope("e11"):
+            W = tf.get_variable("weights",shape=[1,1,sp,e11p])
+            b = tf.get_variable("bias",shape=[e11p])
+            e11 = tf.nn.conv2d(s,W,[1,1,1,1],"VALID")+b
+            e11 = tf.nn.relu(e11)
+        with tf.variable_scope("e33"):
+            W = tf.get_variable("weights",shape=[3,3,sp,e33p])
+            b = tf.get_variable("bias",shape=[e33p])
+            e33 = tf.nn.conv2d(s,W,[1,1,1,1],"SAME")+b
+            e33 = tf.nn.relu(e33)
+        return tf.concat([e11,e33],3)
 
-    def call(self, x):
-        x = self.squeeze(x)
-        return tf.concat([
-            self.expand1x1(x),
-            self.expand3x3(x)
-        ], axis=3)
 
+class SqueezeNet(object):
+    def extract_features(self, input=None, reuse=True):
+        if input is None:
+            input = self.image
+        x = input
+        layers = []
+        with tf.variable_scope('features', reuse=reuse):
+            with tf.variable_scope('layer0'):
+                W = tf.get_variable("weights",shape=[3,3,3,64])
+                b = tf.get_variable("bias",shape=[64])
+                x = tf.nn.conv2d(x,W,[1,2,2,1],"VALID")
+                x = tf.nn.bias_add(x,b)
+                layers.append(x)
+            with tf.variable_scope('layer1'):
+                x = tf.nn.relu(x)
+                layers.append(x)
+            with tf.variable_scope('layer2'):
+                x = tf.nn.max_pool(x,[1,3,3,1],strides=[1,2,2,1],padding='VALID')
+                layers.append(x)
+            with tf.variable_scope('layer3'):
+                x = fire_module(x,64,16,64,64)
+                layers.append(x)
+            with tf.variable_scope('layer4'):
+                x = fire_module(x,128,16,64,64)
+                layers.append(x)
+            with tf.variable_scope('layer5'):
+                x = tf.nn.max_pool(x,[1,3,3,1],strides=[1,2,2,1],padding='VALID')
+                layers.append(x)
+            with tf.variable_scope('layer6'):
+                x = fire_module(x,128,32,128,128)
+                layers.append(x)
+            with tf.variable_scope('layer7'):
+                x = fire_module(x,256,32,128,128)
+                layers.append(x)
+            with tf.variable_scope('layer8'):
+                x = tf.nn.max_pool(x,[1,3,3,1],strides=[1,2,2,1],padding='VALID')
+                layers.append(x)
+            with tf.variable_scope('layer9'):
+                x = fire_module(x,256,48,192,192)
+                layers.append(x)
+            with tf.variable_scope('layer10'):
+                x = fire_module(x,384,48,192,192)
+                layers.append(x)
+            with tf.variable_scope('layer11'):
+                x = fire_module(x,384,64,256,256)
+                layers.append(x)
+            with tf.variable_scope('layer12'):
+                x = fire_module(x,512,64,256,256)
+                layers.append(x)
+        return layers
 
-class SqueezeNet(tf.keras.Model):
-    def __init__(self, num_classes=NUM_CLASSES):
-        super(SqueezeNet, self).__init__()
-        self.num_classes = num_classes
+    def __init__(self, save_path=None, sess=None):
+        """Create a SqueezeNet model.
+        Inputs:
+        - save_path: path to TensorFlow checkpoint
+        - sess: TensorFlow session
+        - input: optional input to the model. If None, will use placeholder for input.
+        """
+        self.image = tf.placeholder('float',shape=[None,None,None,3],name='input_image')
+        self.labels = tf.placeholder('int32', shape=[None], name='labels')
+        self.layers = []
+        x = self.image
+        self.layers = self.extract_features(x, reuse=False)
+        self.features = self.layers[-1]
+        with tf.variable_scope('classifier'):
+            with tf.variable_scope('layer0'):
+                x = self.features
+                self.layers.append(x)
+            with tf.variable_scope('layer1'):
+                W = tf.get_variable("weights",shape=[1,1,512,1000])
+                b = tf.get_variable("bias",shape=[1000])
+                x = tf.nn.conv2d(x,W,[1,1,1,1],"VALID")
+                x = tf.nn.bias_add(x,b)
+                self.layers.append(x)
+            with tf.variable_scope('layer2'):
+                x = tf.nn.relu(x)
+                self.layers.append(x)
+            with tf.variable_scope('layer3'):
+                x = tf.nn.avg_pool(x,[1,13,13,1],strides=[1,13,13,1],padding='VALID')
+                self.layers.append(x)
+        self.scores = tf.reshape(x,[-1, NUM_CLASSES])
 
-        self.net = tf.keras.models.Sequential([
-            tf.keras.layers.Conv2D(64, kernel_size=(3, 3), strides=(2,2), padding="VALID", activation='relu', input_shape=(224, 224, 3), name='features/layer0'),
-            tf.keras.layers.MaxPool2D(pool_size=3, strides=2, name='features/layer2'),
-            Fire(64, 16, 64, 64, name='features/layer3'),
-            Fire(128, 16, 64, 64, name='features/layer4'),
-            tf.keras.layers.MaxPool2D(pool_size=3, strides=2, name='features/layer5'),
-            Fire(128, 32, 128, 128, name='features/layer6'),
-            Fire(256, 32, 128, 128, name='features/layer7'),
-            tf.keras.layers.MaxPool2D(pool_size=3, strides=2, name='features/layer8'),
-            Fire(256, 48, 192, 192, name='features/layer9'),
-            Fire(384, 48, 192, 192, name='features/layer10'),
-            Fire(384, 64, 256, 256, name='features/layer11'),
-            Fire(512, 64, 256, 256, name='features/layer12'),
-            tf.keras.layers.Conv2D(self.num_classes, kernel_size=1, padding="VALID",  activation='relu', name='classifier/layer1'),
-            tf.keras.layers.AveragePooling2D(pool_size=13, strides=13, padding="VALID", name='classifier/layer3')
-            ])
-
-    def call(self, x, save_path=None):
-        x = self.net(x)
-        scores = tf.reshape(x, (-1, self.num_classes))
-        return scores
+        if save_path is not None:
+            saver = tf.train.Saver()
+            saver.restore(sess, save_path)
+        self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels=tf.one_hot(self.labels, NUM_CLASSES), logits=self.scores))
